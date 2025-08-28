@@ -1,0 +1,19 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Saffron background -->
+  <rect width="64" height="64" rx="14" fill="#ff6b35"/>
+  <!-- Bold white 8 made of two smaller circles -->
+  <g fill="#ffffff">
+    <circle cx="32" cy="18" r="16"/>
+    <circle cx="32" cy="46" r="16"/>
+  </g>
+  <!-- Carve inner counters to read as 8 -->
+  <g fill="#ff6b35">
+    <circle cx="32" cy="18" r="8"/>
+    <circle cx="32" cy="46" r="8"/>
+  </g>
+  <!-- S S letters inside the loops -->
+  <g fill="#ffffff" font-family="Georgia, 'Times New Roman', serif" font-size="9" font-weight="600">
+    <text x="32" y="18" text-anchor="middle" dominant-baseline="middle">S</text>
+    <text x="32" y="46" text-anchor="middle" dominant-baseline="middle">S</text>
+  </g>
+</svg>

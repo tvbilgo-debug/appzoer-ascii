@@ -1,0 +1,103 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String?
+  image     String?
+  provider  String   @default("credentials") // credentials, google, github
+  credits   Int      @default(10) // Free users get 10 credits
+  plan      String   @default("free") // "free" or "pro"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  projects Project[]
+  presets  Preset[]
+  settings UserSettings?
+  analytics Analytics[]
+
+  @@map("users")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   // "image", "text", "batch"
+  status      String   @default("draft") // draft, completed, archived
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Project data
+  imageUrl     String?
+  asciiResult  String?
+  settings     String? // ConversionSettings as JSON string
+  fileSize     Int?
+  dimensions   String? // "width x height"
+  processingTime Int? // in milliseconds
+
+  @@map("projects")
+}
+
+model Preset {
+  id        String   @id @default(cuid())
+  name      String
+  settings  String   // ConversionSettings as JSON string
+  isPublic  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("presets")
+}
+
+model UserSettings {
+  id                String   @id @default(cuid())
+  theme             String   @default("system") // light, dark, system
+  defaultWidth      Int      @default(80)
+  defaultCharSet    String   @default(" .:-=+*#%@")
+  defaultBrightness Float    @default(1.0)
+  defaultContrast   Float    @default(1.0)
+  defaultGamma      Float    @default(1.0)
+  autoSave          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model Analytics {
+  id        String   @id @default(cuid())
+  event     String   // conversion_started, conversion_completed, download, etc.
+  metadata  String?  // Additional event data as JSON string
+  createdAt DateTime @default(now())
+
+  // Optional user tracking
+  userId String?
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("analytics")
+}
