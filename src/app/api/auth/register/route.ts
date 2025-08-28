@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { prisma, isBuildTime } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 
@@ -10,6 +10,14 @@ const registerSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  // Prevent database calls during build time
+  if (isBuildTime()) {
+    return NextResponse.json(
+      { error: 'Service temporarily unavailable' },
+      { status: 503 }
+    )
+  }
+
   try {
     const body = await request.json()
     const { name, email, password } = registerSchema.parse(body)
@@ -61,6 +69,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Validation error', details: error.errors },
         { status: 400 }
+      )
+    }
+
+    // Handle Prisma connection errors
+    if (error instanceof Error && error.message.includes('PrismaClientInitializationError')) {
+      console.error('Database connection error:', error)
+      return NextResponse.json(
+        { error: 'Database connection error' },
+        { status: 503 }
       )
     }
 
