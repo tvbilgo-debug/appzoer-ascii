@@ -17,7 +17,6 @@ import {
   Download, 
   Trash2, 
   Edit,
-  Calendar,
   Clock,
   User
 } from "lucide-react";
@@ -381,7 +380,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <Calendar className="h-5 w-5 text-muted-foreground" />
+                    <Clock className="h-5 w-5 text-muted-foreground" />
                     <div>
                       <p className="font-medium">Member since</p>
                       <p className="text-sm text-muted-foreground">
