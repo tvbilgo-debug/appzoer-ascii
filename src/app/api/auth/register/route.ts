@@ -9,6 +9,11 @@ const registerSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters')
 })
 
+// Export a GET handler to prevent build-time errors
+export async function GET() {
+  return NextResponse.json({ message: 'Register endpoint' })
+}
+
 export async function POST(request: NextRequest) {
   // Prevent database calls during build time
   if (isBuildTime()) {

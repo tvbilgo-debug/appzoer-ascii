@@ -8,6 +8,7 @@ const presetSchema = z.object({
   settings: z.record(z.any())
 })
 
+// Export a GET handler to prevent build-time errors
 export async function GET(request: NextRequest) {
   try {
     const session = await auth()
