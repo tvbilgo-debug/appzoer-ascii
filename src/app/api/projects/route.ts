@@ -1,24 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
 const projectSchema = z.object({
-  name: z.string().min(1, 'Project name is required'),
+  name: z.string().min(1),
   description: z.string().optional(),
   type: z.enum(['image', 'text', 'batch']),
-  imageUrl: z.string().optional(),
-  asciiResult: z.string().optional(),
-  settings: z.any().optional(),
-  fileSize: z.number().optional(),
-  dimensions: z.string().optional(),
-  processingTime: z.number().optional()
+  settings: z.record(z.any()),
+  asciiResult: z.string().optional()
 })
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await auth()
     
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -27,53 +22,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const { searchParams } = new URL(request.url)
-    const type = searchParams.get('type')
-    const status = searchParams.get('status')
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
-    const skip = (page - 1) * limit
-
-    const where: any = {
-      userId: session.user.id
-    }
-
-    if (type) where.type = type
-    if (status) where.status = status
-
     const projects = await prisma.project.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: limit,
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        type: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-        imageUrl: true,
-        fileSize: true,
-        dimensions: true,
-        processingTime: true
-      }
+      where: { userId: session.user.id },
+      orderBy: { updatedAt: 'desc' }
     })
 
-    const total = await prisma.project.count({ where })
-
-    return NextResponse.json({
-      projects,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
-      }
-    })
+    return NextResponse.json(projects)
   } catch (error) {
-    console.error('Get projects error:', error)
+    console.error('Error fetching projects:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -83,7 +39,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await auth()
     
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -93,25 +49,28 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const projectData = projectSchema.parse(body)
+    const validatedData = projectSchema.parse(body)
 
     const project = await prisma.project.create({
       data: {
-        ...projectData,
+        name: validatedData.name,
+        description: validatedData.description || '',
+        type: validatedData.type,
+        settings: JSON.stringify(validatedData.settings),
+        asciiResult: validatedData.asciiResult || '',
         userId: session.user.id
       }
     })
 
     return NextResponse.json(project, { status: 201 })
   } catch (error) {
+    console.error('Error creating project:', error)
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Invalid data', details: error.errors },
         { status: 400 }
       )
     }
-
-    console.error('Create project error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

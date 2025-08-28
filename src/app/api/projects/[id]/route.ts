@@ -1,25 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
-const updateProjectSchema = z.object({
-  name: z.string().min(1, 'Project name is required').optional(),
+const projectUpdateSchema = z.object({
+  name: z.string().min(1).optional(),
   description: z.string().optional(),
-  status: z.enum(['draft', 'completed', 'archived']).optional(),
-  asciiResult: z.string().optional(),
-  settings: z.any().optional(),
-  processingTime: z.number().optional()
+  settings: z.record(z.any()).optional(),
+  asciiResult: z.string().optional()
 })
 
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const params = await context.params
   try {
-    const session = await getServerSession(authOptions)
+    const session = await auth()
     
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -28,9 +24,11 @@ export async function GET(
       )
     }
 
+    const { id } = await params
+
     const project = await prisma.project.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: session.user.id
       }
     })
@@ -44,7 +42,7 @@ export async function GET(
 
     return NextResponse.json(project)
   } catch (error) {
-    console.error('Get project error:', error)
+    console.error('Error fetching project:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -54,11 +52,10 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const params = await context.params
   try {
-    const session = await getServerSession(authOptions)
+    const session = await auth()
     
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -67,12 +64,13 @@ export async function PUT(
       )
     }
 
+    const { id } = await params
     const body = await request.json()
-    const updateData = updateProjectSchema.parse(body)
+    const validatedData = projectUpdateSchema.parse(body)
 
     const project = await prisma.project.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: session.user.id
       }
     })
@@ -84,21 +82,26 @@ export async function PUT(
       )
     }
 
+    const updateData: any = {}
+    if (validatedData.name) updateData.name = validatedData.name
+    if (validatedData.description !== undefined) updateData.description = validatedData.description
+    if (validatedData.settings) updateData.settings = JSON.stringify(validatedData.settings)
+    if (validatedData.asciiResult !== undefined) updateData.asciiResult = validatedData.asciiResult
+
     const updatedProject = await prisma.project.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData
     })
 
     return NextResponse.json(updatedProject)
   } catch (error) {
+    console.error('Error updating project:', error)
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Invalid data', details: error.errors },
         { status: 400 }
       )
     }
-
-    console.error('Update project error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -108,11 +111,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const params = await context.params
   try {
-    const session = await getServerSession(authOptions)
+    const session = await auth()
     
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -121,9 +123,11 @@ export async function DELETE(
       )
     }
 
+    const { id } = await params
+
     const project = await prisma.project.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: session.user.id
       }
     })
@@ -136,15 +140,12 @@ export async function DELETE(
     }
 
     await prisma.project.delete({
-      where: { id: params.id }
+      where: { id }
     })
 
-    return NextResponse.json(
-      { message: 'Project deleted successfully' },
-      { status: 200 }
-    )
+    return NextResponse.json({ message: 'Project deleted successfully' })
   } catch (error) {
-    console.error('Delete project error:', error)
+    console.error('Error deleting project:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

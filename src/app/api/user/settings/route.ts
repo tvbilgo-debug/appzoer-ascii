@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
@@ -16,7 +15,7 @@ const settingsSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await auth()
     
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -25,20 +24,30 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    let settings = await prisma.userSettings.findUnique({
+    const userSettings = await prisma.userSettings.findUnique({
       where: { userId: session.user.id }
     })
 
-    if (!settings) {
+    if (!userSettings) {
       // Create default settings if they don't exist
-      settings = await prisma.userSettings.create({
-        data: { userId: session.user.id }
+      const defaultSettings = await prisma.userSettings.create({
+        data: {
+          userId: session.user.id,
+          theme: 'system',
+          defaultWidth: 80,
+          defaultCharSet: ' .:-=+*#%@',
+          defaultBrightness: 1.0,
+          defaultContrast: 1.0,
+          defaultGamma: 1.0,
+          autoSave: true
+        }
       })
+      return NextResponse.json(defaultSettings)
     }
 
-    return NextResponse.json(settings)
+    return NextResponse.json(userSettings)
   } catch (error) {
-    console.error('Get user settings error:', error)
+    console.error('Error fetching user settings:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -48,7 +57,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await auth()
     
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -58,33 +67,40 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const updateData = settingsSchema.parse(body)
+    const validatedData = settingsSchema.parse(body)
 
-    let settings = await prisma.userSettings.findUnique({
-      where: { userId: session.user.id }
-    })
-
-    if (!settings) {
-      settings = await prisma.userSettings.create({
-        data: { userId: session.user.id }
-      })
-    }
-
-    const updatedSettings = await prisma.userSettings.update({
+    const updatedSettings = await prisma.userSettings.upsert({
       where: { userId: session.user.id },
-      data: updateData
+      update: {
+        ...(validatedData.theme && { theme: validatedData.theme }),
+        ...(validatedData.defaultWidth && { defaultWidth: validatedData.defaultWidth }),
+        ...(validatedData.defaultCharSet && { defaultCharSet: validatedData.defaultCharSet }),
+        ...(validatedData.defaultBrightness && { defaultBrightness: validatedData.defaultBrightness }),
+        ...(validatedData.defaultContrast && { defaultContrast: validatedData.defaultContrast }),
+        ...(validatedData.defaultGamma && { defaultGamma: validatedData.defaultGamma }),
+        ...(validatedData.autoSave !== undefined && { autoSave: validatedData.autoSave })
+      },
+      create: {
+        userId: session.user.id,
+        theme: validatedData.theme || 'system',
+        defaultWidth: validatedData.defaultWidth || 80,
+        defaultCharSet: validatedData.defaultCharSet || ' .:-=+*#%@',
+        defaultBrightness: validatedData.defaultBrightness || 1.0,
+        defaultContrast: validatedData.defaultContrast || 1.0,
+        defaultGamma: validatedData.defaultGamma || 1.0,
+        autoSave: validatedData.autoSave ?? true
+      }
     })
 
     return NextResponse.json(updatedSettings)
   } catch (error) {
+    console.error('Error updating user settings:', error)
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
+        { error: 'Invalid data', details: error.errors },
         { status: 400 }
       )
     }
-
-    console.error('Update user settings error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
